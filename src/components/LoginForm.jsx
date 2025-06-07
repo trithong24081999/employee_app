@@ -7,7 +7,8 @@ import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import Input from './Input';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+import { useDispatch, useSelector } from 'react-redux';
+import {setUsername, clearUsername} from '../features/users/userSlice';
 
 export default function LoginForm() {
 
@@ -17,6 +18,8 @@ export default function LoginForm() {
         error: ''
     });
 
+    const dispatch = useDispatch();
+    const user = useSelector((state) => state.user.name);
     const [loading, setLoading] = useState(false)
     const navigate = useNavigate()
     const login_handling = async (e) => {
@@ -28,6 +31,7 @@ export default function LoginForm() {
             if (token_response && token_response.data) {
                 localStorage.setItem('token', token_response.data.token);
                 localStorage.setItem('token_expires', Date.now() + token_response.data.token_expires * 1000);
+                localStorage.setItem('id', token_response.data.id);
                 toast.success("Log In successfully.");
                 navigate('/dashboard');
             } else {
@@ -49,59 +53,100 @@ export default function LoginForm() {
 
     const changeHandling = (e) => {
         const { name, value } = e.target
-        console.log(e.target.value)
         setForm(prev => ({ ...prev, [name]: value }))
     }
     const [visible, setVisible] = useState(false)
 
 
     return (
-        <div className="h-[60%] mt-[10%] flex justify-center">
-            <form id="login" onSubmit={login_handling}>
-                <div id="spinner" className={`absolute top-0 left-0 w-full h-full bg-gray-200 bg-opacity-50 flex items-center justify-center ${loading ? '' : 'hidden'}`}>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+            <form
+                id="login"
+                onSubmit={login_handling}
+                className="w-full max-w-md bg-white p-6 rounded-lg shadow-md relative"
+            >
+                {/* Spinner overlay */}
+                <div
+                    id="spinner"
+                    className={`absolute top-0 left-0 w-full h-full bg-white bg-opacity-70 flex items-center justify-center z-10 ${loading ? '' : 'hidden'}`}
+                >
                     <div className="flex space-x-2">
                         <span className="w-4 h-4 bg-blue-500 rounded-full animate-bounce animation-delay-200"></span>
                         <span className="w-4 h-4 bg-blue-500 rounded-full animate-bounce animation-delay-400"></span>
                         <span className="w-4 h-4 bg-blue-500 rounded-full animate-bounce animation-delay-600"></span>
-                    </div>                </div>
-                <Input label="Username" autoComplete="username" name="username" onChange={changeHandling} value={form.username}
-                    type="text" className='h-10 w-75 pl-5 rounded-sm border border-gray-300 focus:outline-1 focus:border-red-300' placeholder="Enter Username" required="required" />
-                <Input label="Password" autoComplete="current-password" key="password" name="password" type={!visible ? 'password' : 'text'} value={form.password} onChange={changeHandling} className='h-10 w-75 rounded-sm border border-gray-300 focus:outline-1 focus:border-red-300 pl-5' placeholder="Enter Password" required >
-                    <FontAwesomeIcon icon={visible ? faEye : faEyeSlash} className="absolute pl-5 bottom-[10%] right-3 cursor-pointer"
-                        onClick={(e) => {
-                            setVisible(!visible)
-                        }} />
+                    </div>
+                </div>
+
+                {/* Username input */}
+                <Input
+                    label="Username"
+                    autoComplete="username"
+                    name="username"
+                    onChange={changeHandling}
+                    value={form.username}
+                    type="text"
+                    className="h-10 w-full px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    placeholder="Enter Username"
+                    required
+                />
+
+                {/* Password input */}
+                <Input
+                    label="Password"
+                    autoComplete="current-password"
+                    key="password"
+                    name="password"
+                    type={!visible ? 'password' : 'text'}
+                    value={form.password}
+                    onChange={changeHandling}
+                    className="h-10 w-full px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    placeholder="Enter Password"
+                    required
+                >
+                    <FontAwesomeIcon
+                        icon={visible ? faEye : faEyeSlash}
+                        className="absolute bottom-[10%] right-3 cursor-pointer text-gray-500"
+                        onClick={() => setVisible(!visible)}
+                    />
                 </Input>
 
-                {/* <div className="flex flex-col">
-                    <label className="w-full font-bold">Username</label>
-                    <input autoComplete="username" name="username" onChange={changeHandling} value={form.username}
-                        type="text" className='h-10 w-75 rounded-sm border border-gray-300 focus:outline-1 focus:border-red-300' placeholder="Enter Username" required />
+                {/* Submit button */}
+                <div className="mt-4">
+                    <button
+                        disabled={loading}
+                        className={`w-full h-10 rounded-md font-semibold text-white transition-colors ${
+                            loading
+                                ? 'bg-blue-300 cursor-not-allowed'
+                                : 'bg-green-500 hover:bg-green-600'
+                        }`}
+                    >
+                        {loading ? 'Loading...' : 'Log In'}
+                    </button>
                 </div>
-                <div className="flex flex-col relative">
-                    <label className="w-full font-bold">Password</label>
-                    <input autoComplete="current-password"  key="password" name="password" type={!visible?'password':'text'} value={form.password} onChange={changeHandling} className='relative h-10 w-75 rounded-sm border border-gray-300 focus:outline-1 focus:border-red-300' placeholder="Enter Password" required />            
-                    <FontAwesomeIcon icon={visible?faEye:faEyeSlash} className="absolute bottom-[10%] right-3 cursor-pointer"
-                    onClick={(e)=>{
-                        setVisible(!visible)
-                    }}/>
-                </div> */}
-                <div>
-                    <button disabled={loading} className={`bg-blue-300 h-10 w-full rounded-sm ${loading ? '' : 'hover:opacity-90 hover:bg-green-400'}`}>{loading ? "Loading" : "Log In"}  </button>
-                </div>
-                <div>
 
-                    {
-                        form.error && <div className='bg-red-500 text-black font-normal max-w-75 rounded-sm shadow'>
-                            {form.error}
-                        </div>
-                    }
-                </div>
-                <div className='flex justify-around'>
-                    <Link to="/signup" className='underline text-green-500 hover:opacity-80 hover:text-blue-500'><i></i>Sign in</Link>
-                    <Link to="/reset" className='underline text-green-500 hover:opacity-80 hover:text-blue-500'>Reset Password</Link>
+                {/* Error message */}
+                {form.error && (
+                    <div className="mt-3 bg-red-100 text-red-700 px-4 py-2 rounded-md text-sm">
+                        {form.error}
+                    </div>
+                )}
+
+                {/* Links */}
+                <div className="mt-4 flex justify-between text-sm">
+                    <Link
+                        to="/signup"
+                        className="text-blue-500 underline hover:text-blue-700"
+                    >
+                        Sign Up
+                    </Link>
+                    <Link
+                        to="/reset"
+                        className="text-blue-500 underline hover:text-blue-700"
+                    >
+                        Reset Password
+                    </Link>
                 </div>
             </form>
         </div>
-    )
+    );
 }

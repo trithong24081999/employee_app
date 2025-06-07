@@ -3,14 +3,15 @@ import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import LoginPage from './pages/login'
+import LoginPage from './pages/Login'
 import LoginForm from './components/LoginForm'
 import SignUp from './components/SignUp'
 import Dashboard from './pages/Dashboard'
 import CheckTokenExpiry from './services/seasonChecking'
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import {useStore, useDispatch, useDispatch} from 'react-redux';
+import DashboardContent from './components/dashboard'
+
 
 function App() {
 	const [count, setCount] = useState(0)
@@ -23,10 +24,12 @@ function App() {
 					<Route index element={<LoginForm/>}/>
 					<Route path="signup" element={<SignUp/>}/>
 				</Route>
-				<Route path="/dashboard" element={
-					<CheckTokenExpiry>
-						<Dashboard/>
-					</CheckTokenExpiry>}/>
+				<Route element={<CheckTokenExpiry/>}>
+					<Route path="/dashboard" element={<Dashboard/>}>
+						<Route index element={<DashboardContent/>}/>
+					</Route>
+				</Route>
+			
 				<Route path="*" element={<Navigate to="/"/>}/>
 			</Routes>
 			<ToastContainer

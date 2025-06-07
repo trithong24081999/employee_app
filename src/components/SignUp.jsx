@@ -24,13 +24,11 @@
             }
             try {
 
-                const response = await await BackendApi.post(
-                    'user/create/',
+                const response = await BackendApi.post(
+                    'api/user/create/',
                     { username: form.username, password: form.password },
                     { withCredentials: false }  // ghi đè cho riêng request này
                 );
-
-
                 if (response && response.data) {
                     navigate('/login'); // Redirect to login after successful registration
                 } else {

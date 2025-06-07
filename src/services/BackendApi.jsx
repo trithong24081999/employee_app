@@ -8,9 +8,23 @@ const BackendApi = axios.create({
     withCredentials: true,
 })
 
+BackendApi.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${token}`,
+            };
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+
 BackendApi.interceptors.response.use(
 	(response) => {
-        console.log(response)
 		return response;
 	},
 	(error) => {
