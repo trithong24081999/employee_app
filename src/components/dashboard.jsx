@@ -1,36 +1,86 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { FixedSizeList as List } from "react-window";
-import { FixedSizeGrid as Grid } from "react-window";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { FixedSizeGrid as Grid, FixedSizeList as List } from "react-window";
 import InfiniteLoader from "react-window-infinite-loader";
-import BackendApi from "../services/BackendApi";
+import BackendApi from '../services/BackendApi'
+import { useNavigate, useSearchParams } from "react-router-dom";
+
+
+function SearchBar({ onSearch }) {
+    const [input, setInput] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const onSubmit = () => {
+        if (input.trim()) onSearch(["name", input.trim()]);
+
+        else onSearch([]);
+    };
+    return (
+        <div className="flex">
+            <input
+                className="border rounded p-1 flex-grow"
+                value={input}
+                onChange={(e) => {
+                    const value = e.target.value;
+                    setInput(value);
+                    setSearchParams(prev => {
+                        const params = new URLSearchParams(prev);
+                        if (value.trim()) {
+                            params.set("search", value.trim());
+                        } else {
+                            params.delete("search");
+                        }
+                        return params;
+                    });
+                }}
+                placeholder="Search by name..."
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") onSubmit();
+                }}
+            />
+            <button
+                className="ml-2 px-3 py-1 border rounded bg-blue-600 text-white"
+                onClick={onSubmit}
+            >
+                Search
+            </button>
+        </div>
+    );
+}
 
 export default function DashboardContent() {
     const pageSize = 10;
     const [employees, setEmployees] = useState([]);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMap, setLoadingMap] = useState({});
-    const [type, setType] = useState("grid"); // 'grid' or 'list'
-
+    const [type, setType] = useState("grid");
+    const [filter, setFilter] = useState("api/employee");
+    const navigate = useNavigate()
     const containerRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(1000);
     const [columnCount, setColumnCount] = useState(4);
-    const [filter, setFilter] = useState('api/employee');
     const gap = 16;
-
-    const adjustedColumnWidth = (containerWidth - gap * (columnCount - 1)) / columnCount;
     const rowHeight = 130;
     const adjustedRowHeight = rowHeight + gap;
-    const rowCount = Math.ceil(employees.length / columnCount) + (hasMore ? 1 : 0);
-    const listCount = hasMore ? employees.length + 1 : employees.length;
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [search, setSearch] = useState(searchParams.get("search") || "");
 
-    const isItemLoaded = ({ rowIndex, columnIndex }) => {
-        const index = rowIndex * columnCount + columnIndex;
-        return !!employees[index];
-    };
+    useEffect(() => {
+        const param = searchParams.get("search") || "";
+        setSearch(param);
+    }, [searchParams]);
 
-    const isRowLoaded = index => !!employees[index];
+    const [url, setUrl] = useState('')
 
-    // Resize container and set column count
+    useEffect(() => {
+        const params = new URLSearchParams();
+
+        for (const [key, value] of Object.entries(searchParams)) {
+            params.set(key, value);
+        };
+        setUrl(params)
+    }, [searchParams])
+    const adjustedColumnWidth = (containerWidth - gap * (columnCount - 1)) / columnCount;
+
     useEffect(() => {
         const handleResize = () => {
             if (containerRef.current) {
@@ -43,8 +93,17 @@ export default function DashboardContent() {
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
     }, []);
+    console.log(url)
+    // Calculate rows and items count
+    const hasNextRow = hasMore && (employees.length % columnCount === 0);
+    const rowCount = Math.ceil(employees.length / columnCount) + (hasNextRow ? 1 : 0);
+    const itemCount = rowCount * columnCount;
 
-    // Load more items using offset based on employees.length
+    const isItemLoaded = ({ rowIndex, columnIndex }) => {
+        const index = rowIndex * columnCount + columnIndex;
+        return !!employees[index];
+    };
+
     const loadMoreItems = useCallback(async () => {
         if (!hasMore) return;
 
@@ -53,77 +112,92 @@ export default function DashboardContent() {
 
         if (loadingMap[pageIndex]) return;
 
-        setLoadingMap(prev => ({ ...prev, [pageIndex]: true }));
+        setLoadingMap((prev) => ({ ...prev, [pageIndex]: true }));
 
         try {
-            const response = await BackendApi.get(`${filter}/?limit=${pageSize}&offset=${offset}`);
+            const searchQuery =
+                search.length === 2 ? `&${search[0]}=${encodeURIComponent(search[1])}` : "";
+            const response = await BackendApi.get(
+                `${filter}/?limit=${pageSize}&offset=${offset}${searchQuery}`
+            );
             const newEmployees = response.data?.results || [];
-
-            setEmployees(prev => [...prev, ...newEmployees]);
+            setEmployees((prev) => [...prev, ...newEmployees]);
             if (newEmployees.length < pageSize) setHasMore(false);
         } catch (error) {
-            console.error("Fetch error:", error);
         } finally {
-            setLoadingMap(prev => {
+            setLoadingMap((prev) => {
                 const updated = { ...prev };
                 delete updated[pageIndex];
                 return updated;
             });
         }
-    }, [employees.length, hasMore, loadingMap, filter]);
+    }, [employees.length, hasMore, loadingMap, filter, search]);
 
-    // Reload data when filter changes
+    // Reload data on filter or search change
     useEffect(() => {
         const fetchInitial = async () => {
             setEmployees([]);
             setHasMore(true);
             setLoadingMap({});
             try {
-                const response = await BackendApi.get(`${filter}/?limit=${pageSize}&offset=0`);
+                const searchQuery =
+                    search.length === 2 ? `&${search[0]}=${encodeURIComponent(search[1])}` : "";
+
+                const response = await BackendApi.get(
+                    `${filter}/?limit=${pageSize}&offset=0${searchQuery}`
+                );
                 const newEmployees = response.data?.results || [];
                 setEmployees(newEmployees);
                 if (newEmployees.length < pageSize) setHasMore(false);
             } catch (error) {
-                console.error("Initial fetch error:", error);
             }
         };
-
         fetchInitial();
-    }, [filter]);
+    }, [filter, search]);
+    const ClickHandling = (emp) => {
+        navigate(`dashboard/employee/${emp.id}`)
+
+    }
+    // Key cho InfiniteLoader/Grid để reset khi filter/search thay đổi
+    const searchKey = search.length === 2 ? `${search[0]}-${search[1]}` : "";
 
     return (
         <div className="w-full border rounded bg-gray-100 p-4" ref={containerRef}>
+            {/* Search Bar */}
+            <div className="mb-4 w-[30%] float-right">
+                <SearchBar onSearch={setSearch} />
+            </div>
+
             {/* Toggle Buttons */}
-            <div className="flex justify-end space-x-2 mb-4">
+            <div className="flex justify-end space-x-2 mb-4 clear-both">
                 <button
-                    className={`px-4 py-2 border rounded ${type === "grid" ? "bg-blue-600 text-white" : "bg-white text-gray-800 hover:bg-gray-100"}`}
+                    className={`px-4 py-2 border rounded ${type === "grid" ? "bg-blue-600 text-white" : "bg-white text-gray-800 hover:bg-gray-100"
+                        }`}
                     onClick={() => setType("grid")}
                 >
                     <i className="fa fa-address-card" aria-hidden="true"></i>
                 </button>
                 <button
-                    className={`px-4 py-2 border rounded ${type === "list" ? "bg-blue-600 text-white" : "bg-white text-gray-800 hover:bg-gray-100"}`}
+                    className={`px-4 py-2 border rounded ${type === "list" ? "bg-blue-600 text-white" : "bg-white text-gray-800 hover:bg-gray-100"
+                        }`}
                     onClick={() => setType("list")}
                 >
                     <i className="fas fa-bars"></i>
                 </button>
             </div>
 
+            {/* Filter sidebar and content */}
             <div className="flex justify-between">
-                {/* Sidebar Filter */}
                 <div className="w-[15%] pr-4">
                     <section>
                         <header className="font-bold mb-2">Filter</header>
                         <ul className="space-y-2 text-sm">
-                            <li
-                                className="cursor-pointer hover:text-blue-600"
-                                onClick={() => setFilter('api/employee')}
-                            >
+                            <li className="cursor-pointer hover:text-blue-600" onClick={() => setFilter("api/employee")}>
                                 Tất cả
                             </li>
                             <li
                                 className="cursor-pointer hover:text-blue-600"
-                                onClick={() => setFilter('api/employee/stored_employee')}
+                                onClick={() => setFilter("api/employee/stored_employee")}
                             >
                                 Stored
                             </li>
@@ -131,18 +205,16 @@ export default function DashboardContent() {
                     </section>
                 </div>
 
-                {/* Main content */}
                 <div className="w-[85%]">
                     {type === "grid" ? (
                         <InfiniteLoader
-                            key={filter}
+                            key={`${filter}-${searchKey}`}
                             isItemLoaded={isItemLoaded}
-                            itemCount={rowCount * columnCount}
+                            itemCount={itemCount}
                             loadMoreItems={loadMoreItems}
                         >
                             {({ onItemsRendered, ref }) => (
                                 <Grid
-                                    key={filter}
                                     height={500}
                                     width={containerWidth}
                                     columnCount={columnCount}
@@ -153,7 +225,7 @@ export default function DashboardContent() {
                                         visibleRowStartIndex,
                                         visibleRowStopIndex,
                                         visibleColumnStartIndex,
-                                        visibleColumnStopIndex
+                                        visibleColumnStopIndex,
                                     }) => {
                                         const startIndex = visibleRowStartIndex * columnCount + visibleColumnStartIndex;
                                         const stopIndex = visibleRowStopIndex * columnCount + visibleColumnStopIndex;
@@ -161,13 +233,14 @@ export default function DashboardContent() {
                                             overscanStartIndex: startIndex,
                                             overscanStopIndex: stopIndex,
                                             visibleStartIndex: startIndex,
-                                            visibleStopIndex: stopIndex
+                                            visibleStopIndex: stopIndex,
                                         });
                                     }}
                                     ref={ref}
                                 >
                                     {({ columnIndex, rowIndex, style }) => {
                                         const index = rowIndex * columnCount + columnIndex;
+                                        if (index >= employees.length) return null; // 👈 Add this line
                                         const emp = employees[index];
                                         const adjustedStyle = {
                                             ...style,
@@ -176,16 +249,17 @@ export default function DashboardContent() {
                                             width: style.width - gap,
                                             height: style.height - gap,
                                         };
-
                                         return (
-                                            <div style={adjustedStyle} className="border rounded bg-white shadow text-sm flex flex-col justify-center">
-                                                {emp ? (
-                                                    <div className="m-5">
+                                            <div
+                                                style={adjustedStyle}
+                                                className="text-sm flex flex-col justify-center border-2 rounded-2xl border-black shadow-amber-300 shadow-md"
+                                            >
+                                                {emp && (
+                                                    <div className="m-5 cursor-pointer" onClick={() => ClickHandling(emp)}>
+
                                                         <div className="font-semibold">{emp.name}</div>
                                                         <div className="text-gray-500">{emp.age} tuổi</div>
                                                     </div>
-                                                ) : (
-                                                    <div className="italic text-gray-400 p-4">Đang tải...</div>
                                                 )}
                                             </div>
                                         );
@@ -195,17 +269,15 @@ export default function DashboardContent() {
                         </InfiniteLoader>
                     ) : (
                         <InfiniteLoader
-                            key={filter}
-                            isItemLoaded={isRowLoaded}
-                            itemCount={listCount}
+                            isItemLoaded={isItemLoaded}
+                            itemCount={itemCount}
                             loadMoreItems={loadMoreItems}
                         >
                             {({ onItemsRendered, ref }) => (
                                 <List
-                                    key={filter}
                                     height={500}
-                                    itemCount={listCount}
-                                    itemSize={60}
+                                    itemCount={itemCount}
+                                    itemSize={80}
                                     width={"100%"}
                                     onItemsRendered={onItemsRendered}
                                     ref={ref}
@@ -213,21 +285,23 @@ export default function DashboardContent() {
                                     {({ index, style }) => {
                                         const emp = employees[index];
                                         return (
-                                            <div style={style} className="px-4 py-3 border-b bg-white text-sm flex flex-col justify-center">
+                                            <div style={style} className="p-2">
                                                 {emp ? (
-                                                    <>
-                                                        <div className="font-medium">{emp.name}</div>
+                                                    <div className="border rounded bg-white p-3 shadow text-sm">
+                                                        <div className="font-semibold">{emp.name}</div>
                                                         <div className="text-gray-500">{emp.age} tuổi</div>
-                                                    </>
+                                                    </div>
                                                 ) : (
-                                                    <div className="italic text-gray-400">Đang tải...</div>
+                                                    <div className="text-gray-400 italic">Loading...</div>
                                                 )}
                                             </div>
                                         );
                                     }}
                                 </List>
+
                             )}
                         </InfiniteLoader>
+
                     )}
                 </div>
             </div>
